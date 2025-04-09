@@ -1,2 +1,0 @@
-# TitleMindAIBot
-Titlemind AI
