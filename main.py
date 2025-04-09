@@ -19,7 +19,40 @@ def respond():
     chat_id = update.message.chat.id
     message_text = update.message.text if update.message else ""
     print(f"✅ Telegram webhook hit | Message from {chat_id}: {message_text}")
+import os
+from telegram import Update
+from telegram.ext import CallbackContext
+from upload_handler import save_uploaded_file
+from ocr_engine import extract_text_from_pdf
+from parser import parse_lease_text_to_fields
+from formatter import write_to_tsv
+from bot_responder import simulate_bot_reply
 
+def process_upload(update: Update, context: CallbackContext, headers: list):
+    file = update.message.document
+    file_name = file.file_name
+    file_id = file.file_id
+
+    # Step 1: Download the file
+    new_file = context.bot.get_file(file_id)
+    file_bytes = new_file.download_as_bytearray()
+    local_path = save_uploaded_file(file_bytes, file_name)
+
+    # Step 2: Run OCR
+    text = extract_text_from_pdf(local_path)
+
+    # Step 3: Parse fields from lease text
+    data_rows = parse_lease_text_to_fields(text)
+
+    # Step 4: Format TSV
+    output_filename = f"output_{file_id}.tsv"
+    output_path = write_to_tsv(data_rows, headers, output_filename)
+
+    # Step 5: Send file back
+    with open(output_path, "rb") as f:
+        context.bot.send_document(chat_id=update.message.chat_id, document=f)
+
+    simulate_bot_reply(output_path)
     if message_text == "/start":
         bot.send_message(chat_id=chat_id, text="👋 Welcome to TitleMind AI. Please upload your first document.")
     elif message_text == "/reset_headers":
